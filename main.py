@@ -175,3 +175,7 @@ async def generate_pdf(data: SalesContractData):
     return Response(content=buffer.read(), media_type="application/pdf", headers={
         "Content-Disposition": f"attachment; filename={filename}"
     })
+
+@app.get("/")
+def home():
+    return {"message": "Your Render App is Working!"}
