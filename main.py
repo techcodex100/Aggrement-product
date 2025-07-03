@@ -23,6 +23,12 @@ class SalesContractData(BaseModel):
     quantity: str
     price: str
     amount: str
+    packing: str
+    loading_port: str
+    destination_port: str
+    shipment: str
+    sellers_bank: str
+    account_no: str
 
 # ✅ Counter logic
 def get_next_counter():
@@ -51,30 +57,26 @@ async def generate_pdf(data: SalesContractData):
     try:
         img_path = os.path.join(os.path.dirname(__file__), "saleslogo.jpg")
         header_img = ImageReader(img_path)
-
         img_width, img_height = 70, 60
         x_center = (width - img_width) / 2
         y_top = height - 65
 
-        # 🔹 Website (Left)
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(colors.grey)
         c.drawString(40, height - 30, "Website: www.shraddhaimpex.in")
 
-        # 🔹 Logo (Center)
         c.drawImage(header_img, x_center, y_top, width=img_width, height=img_height, mask='auto')
 
-        # 🔹 Company Name + Tagline (Right)
         c.setFont("Helvetica-Bold", 12)
         c.setFillColor(colors.black)
         c.drawRightString(width - 40, height - 25, "SHRADDHA IMPEX")
         c.setFont("Helvetica", 8)
         c.drawRightString(width - 40, height - 38, "(A Government Recognized Export House)")
-    except Exception as e:
+    except:
         c.setFont("Helvetica-Bold", 10)
         c.drawCentredString(width / 2, height - 60, "[HEADER IMAGE MISSING]")
 
-    # 🔷 Title
+    # 🔷 Title and Contract Info
     start_y = height - 100
     c.setFont("Helvetica-Bold", 12)
     c.drawCentredString(width / 2, start_y, "SALES CONTRACT")
@@ -82,28 +84,28 @@ async def generate_pdf(data: SalesContractData):
     c.drawString(50, start_y - 20, f"Contract No: {data.contract_no}")
     c.drawRightString(width - 50, start_y - 20, f"Date: {data.date}")
 
-    # 🔷 Seller Block
-    y = start_y - 70
+    # 🔷 Seller Block (shifted left)
+    y = start_y - 80
     c.setFont("Helvetica-Bold", 9)
-    c.drawString(45, y, "SELLER")
+    c.drawString(35, y, "SELLER")
     seller = [
         "SHRADDHA IMPEX",
-        "308, THIRD FLOOR, FORTUNE BUSINESS CENTER",
+        "308, THIRD FLOOR, FORTUNE ",
+        " BUSINESS CENTER",
         "165 R.N.T. MARG, INDORE-452001",
         "M.P., INDIA"
     ]
     c.setFont("Helvetica", 9)
     for i, line in enumerate(seller):
-        c.drawString(50, y - ((i + 1) * 12), line)
+        c.drawString(35, y - ((i + 1) * 12), line)
 
-    # 🔷 Consignee Block
+    # 🔷 Consignee and Notify Parties (same horizontal line)
     c.setFont("Helvetica-Bold", 9)
     c.drawString(230, y, "CONSIGNEE | NOTIFY PARTY 1")
     c.setFont("Helvetica", 9)
     for i, line in enumerate(data.consignee):
         c.drawString(230, y - ((i + 1) * 12), line)
 
-    # 🔷 Notify Party 2
     c.setFont("Helvetica-Bold", 9)
     c.drawString(410, y, "NOTIFY PARTY 2")
     c.setFont("Helvetica", 9)
@@ -128,21 +130,31 @@ async def generate_pdf(data: SalesContractData):
     table.wrapOn(c, width, height)
     table.drawOn(c, 40, y - 150)
 
-    # 🔷 Static Details
+    # 🔷 Dynamic Details
     y -= 160
-    details = [
-        ("Packing", "50 KG Liner PP Bags"),
-        ("Loading Port", "Any port in India"),
-        ("Destination Port", "Colombo, Srilanka"),
-        ("Shipment", "In lot of 5 containers, on or before 20 June, 2021"),
+    dynamic_details = [
+        ("Packing", data.packing),
+        ("Loading Port", data.loading_port),
+        ("Destination Port", data.destination_port),
+        ("Shipment", data.shipment),
+        ("Seller’s Bank", data.sellers_bank),
+        ("Account No.", data.account_no)
+    ]
+    for label, value in dynamic_details:
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(50, y, f"{label} :")
+        c.setFont("Helvetica", 8)
+        c.drawString(150, y, value)
+        y -= 14
+
+    # 🔷 Static Details
+    static_details = [
         ("Documents", "Invoice in quadruplicate, Packing List in triplicate, B/L 3 original and 2 copies, Phytosanitary Certificate, Certificate of Origin."),
         ("Payment Terms", "Payment against scanned documents through TT."),
-        ("Seller’s Bank", "Bank Of Baroda, Annapurna Road Branch, Indore (M.P.), India"),
-        ("Account No.", "31740200000041; Swift: BARBINBBIND; Account Name: Shraddha Impex"),
         ("Arbitration", "Disputes shall be settled by sole arbitration in Indore, M.P., under Indian laws."),
         ("Terms & Conditions", "1) No claim for port issues.\n2) Quality approved at load port is final.")
     ]
-    for label, value in details:
+    for label, value in static_details:
         c.setFont("Helvetica-Bold", 8)
         c.drawString(50, y, f"{label} :")
         c.setFont("Helvetica", 8)
