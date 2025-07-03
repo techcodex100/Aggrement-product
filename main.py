@@ -1,24 +1,30 @@
+import os
+from io import BytesIO
 from fastapi import FastAPI, Response
 from pydantic import BaseModel
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Table, TableStyle
 from reportlab.lib import colors
-from reportlab.lib.utils import ImageReader
-from io import BytesIO
 import threading
-import os
 
 app = FastAPI()
 lock = threading.Lock()
 COUNTER_FILE = "counter.txt"
 
-# ✅ Input model
+# ✅ Input Model
 class SalesContractData(BaseModel):
     contract_no: str
     date: str
+    company_name: str
+    tagline: str  # Used as "Organization"
+    website: str
+    email: str
+    address: str
+    gst_number: str
+    seller: list[str]
     consignee: list[str]
-    notify_party: list[str]
+    notify_party: list[str] = []
     product_name: str
     quantity: str
     price: str
@@ -29,8 +35,10 @@ class SalesContractData(BaseModel):
     shipment: str
     sellers_bank: str
     account_no: str
+    documents: str
+    payment_terms: str
 
-# ✅ Counter logic
+# ✅ Counter Logic
 def get_next_counter():
     with lock:
         if not os.path.exists(COUNTER_FILE):
@@ -44,7 +52,7 @@ def get_next_counter():
             f.truncate()
             return count
 
-# ✅ PDF generator
+# ✅ PDF Generation
 @app.post("/generate-pdf/")
 async def generate_pdf(data: SalesContractData):
     pdf_number = get_next_counter()
@@ -53,61 +61,60 @@ async def generate_pdf(data: SalesContractData):
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
+    # Margins
+    left_margin = 50
+    right_margin = width - 50
+    top_margin = height - 40
+    bottom_margin = 50
+
     # 🔷 Header
-    try:
-        img_path = os.path.join(os.path.dirname(__file__), "saleslogo.jpg")
-        header_img = ImageReader(img_path)
-        c.setFont("Helvetica-Bold", 9)
-        c.setFillColor(colors.grey)
-        c.drawString(40, height - 30, "Website: www.shraddhaimpex.in")
-        c.drawImage(header_img, (width - 70) / 2, height - 65, width=70, height=60, mask='auto')
-        c.setFont("Helvetica-Bold", 12)
-        c.setFillColor(colors.black)
-        c.drawRightString(width - 40, height - 25, "SHRADDHA IMPEX")
-        c.setFont("Helvetica", 8)
-        c.drawRightString(width - 40, height - 38, "(A Government Recognized Export House)")
-    except:
-        c.setFont("Helvetica-Bold", 10)
-        c.drawCentredString(width / 2, height - 60, "[HEADER IMAGE MISSING]")
+    c.setFont("Helvetica-Bold", 10)
+    c.setFillColor(colors.grey)
+    c.drawString(left_margin, top_margin, f"Website: {data.website}")
+    c.setFont("Helvetica-Bold", 16)
+    c.setFillColor(colors.black)
+    c.drawCentredString(width / 2, top_margin, data.company_name.upper())
+    c.setFont("Helvetica-Bold", 10)
+    c.setFillColor(colors.grey)
+    c.drawRightString(right_margin, top_margin, f"Email: {data.email}")
 
-    # 🔷 Title and Contract Info
-    start_y = height - 100
-    c.setFont("Helvetica-Bold", 12)
+    c.setFont("Helvetica", 11)
+    c.setFillColor(colors.black)
+    c.drawCentredString(width / 2, top_margin - 20, data.tagline)
+
+    c.setFont("Helvetica", 10)
+    c.drawString(left_margin, top_margin - 40, f"Address: {data.address}")
+    c.drawRightString(right_margin, top_margin - 40, f"GST: {data.gst_number}")
+
+    # 🔷 Title & Contract Info
+    start_y = top_margin - 80
+    c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(width / 2, start_y, "SALES CONTRACT")
-    c.setFont("Helvetica", 9)
-    c.drawString(50, start_y - 20, f"Contract No: {data.contract_no}")
-    c.drawRightString(width - 50, start_y - 20, f"Date: {data.date}")
+    c.setFont("Helvetica", 11)
+    c.drawString(left_margin, start_y - 20, f"Contract No: {data.contract_no}")
+    c.drawRightString(right_margin, start_y - 20, f"Date: {data.date}")
 
-    # 🔷 Seller Block
+    # 🔷 Seller / Consignee / Notify Party Block
     y = start_y - 60
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(35, y, "SELLER")
-    seller = [
-        "SHRADDHA IMPEX",
-        "308, THIRD FLOOR, FORTUNE",
-        "BUSINESS CENTER",
-        "165 R.N.T. MARG, INDORE-452001",
-        "M.P., INDIA"
-    ]
-    c.setFont("Helvetica", 9)
-    for i, line in enumerate(seller):
-        c.drawString(35, y - ((i + 1) * 12), line)
+    x1, x2, x3 = 50, 230, 410
 
-    # 🔷 Shift y below seller block
-    y = y - ((len(seller) + 2) * 12)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(x1, y, "SELLER")
+    c.drawString(x2, y, "CONSIGNEE | NOTIFY PARTY 1")
+    c.drawString(x3, y, "NOTIFY PARTY 2")
 
-    # 🔷 Consignee and Notify Parties
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(230, y + 60, "CONSIGNEE | NOTIFY PARTY 1")
-    c.setFont("Helvetica", 9)
+    c.setFont("Helvetica", 10)
+    for i, line in enumerate(data.seller):
+        c.drawString(x1, y - ((i + 1) * 14), line)
     for i, line in enumerate(data.consignee):
-        c.drawString(230, y + 45 - (i * 12), line)
+        c.drawString(x2, y - ((i + 1) * 14), line)
 
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(410, y + 60, "NOTIFY PARTY 2")
-    c.setFont("Helvetica", 9)
-    for i, line in enumerate(data.notify_party):
-        c.drawString(410, y + 45 - (i * 12), line)
+    notify_lines = data.notify_party if data.notify_party else ["TO ORDER"]
+    for i, line in enumerate(notify_lines):
+        c.drawString(x3, y - ((i + 1) * 14), line)
+
+    max_lines = max(len(data.seller), len(data.consignee), len(notify_lines))
+    y = y - ((max_lines + 2) * 14)
 
     # 🔷 Product Table
     table_data = [
@@ -121,64 +128,77 @@ async def generate_pdf(data: SalesContractData):
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
     ]))
     table.wrapOn(c, width, height)
-    table.drawOn(c, 40, y - 100)
+    table.drawOn(c, left_margin, y - 100)
+    y -= 130
 
-    # 🔷 Dynamic Details
-    y = y - 120
+    # 🔷 Dynamic Fields
     dynamic_details = [
         ("Packing", data.packing),
         ("Loading Port", data.loading_port),
         ("Destination Port", data.destination_port),
         ("Shipment", data.shipment),
         ("Seller’s Bank", data.sellers_bank),
-        ("Account No.", data.account_no)
+        ("Account No.", data.account_no),
+        ("Documents", data.documents),
+        ("Payment Terms", data.payment_terms)
     ]
     for label, value in dynamic_details:
-        c.setFont("Helvetica-Bold", 8)
-        c.drawString(50, y, f"{label} :")
-        c.setFont("Helvetica", 8)
-        c.drawString(150, y, value)
-        y -= 14
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(left_margin, y, f"{label}:")
+        c.setFont("Helvetica", 10)
+        for line in str(value).split("\n"):
+            c.drawString(left_margin + 100, y, line)
+            y -= 14
+        y -= 4
 
     # 🔷 Static Details
     static_details = [
-        ("Documents", "Invoice in quadruplicate, Packing List in triplicate, B/L 3 original and 2 copies, Phytosanitary Certificate, Certificate of Origin."),
-        ("Payment Terms", "Payment against scanned documents through TT."),
-        ("Arbitration", "Disputes shall be settled by sole arbitration in Indore, M.P., under Indian laws."),
-        ("Terms & Conditions", "1) No claim for port issues.\n2) Quality approved at load port is final.")
+        ("Arbitration", [
+            "In the event of any dispute between the parties arising out of this contract,",
+            "all disputes shall be settled by the way of arbitration through a sole arbitration",
+            "to be appointed by M/S Shraddha Impex. The place of arbitration shall be in Indore, M.P.",
+            "and the laws of India with regards to arbitration shall be applicable to this Arbitration Clause."
+        ]),
+        ("Terms & Conditions", [
+            "1) In case of port congestion/skippance of vessel or any other port related disturbances,",
+            "supplier or exporter will not be liable for any claim.",
+            "2) Quality approved at load port by independent surveyors is final,",
+            "and to be acceptable by both the parties and the seller will not be liable for any claim at destination port."
+        ])
     ]
-    for label, value in static_details:
-        c.setFont("Helvetica-Bold", 8)
-        c.drawString(50, y, f"{label} :")
-        c.setFont("Helvetica", 8)
-        for line in value.split("\n"):
-            c.drawString(150, y, line)
-            y -= 12
+    for label, lines in static_details:
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(left_margin, y, f"{label}:")
+        c.setFont("Helvetica", 10)
+        for line in lines:
+            c.drawString(left_margin + 100, y, line)
+            y -= 14
         y -= 6
 
-    # 🔷 Acceptance
-    c.setFont("Helvetica-Bold", 10)
+    # 🔷 Acceptance Block
+    c.setFont("Helvetica-Bold", 11)
     c.drawCentredString(width / 2, y, "Accepted")
     y -= 20
-    c.setFont("Helvetica", 9)
+    c.setFont("Helvetica", 10)
     c.drawString(50, y, "For, Seller")
     c.drawString(230, y, "For, Consignee")
     c.drawString(400, y, "For, Notify Party")
     y -= 50
-    c.drawString(50, y, "SHRADDHA IMPEX")
-    c.drawString(230, y, "SMART DRAGON LANKA PVT LTD")
-    c.drawString(400, y, "DEVI GLOBAL HK LTD")
+    c.drawString(50, y, data.seller[0] if data.seller else "")
+    c.drawString(230, y, data.consignee[0] if data.consignee else "")
+    c.drawString(400, y, notify_lines[0])
 
-    # 🔷 Footer
-    c.setFont("Helvetica", 7)
-    c.drawCentredString(width / 2, 30, "308, Third Floor, Fortune Business Center, 165 R.N.T. Marg, Indore 452001, M.P., India")
-    c.drawCentredString(width / 2, 18, "Tel. : (+91) 731 2515151 • Fax : (+91) 731 4096348 • E-Mail : shraddhaimpex@yahoo.com")
+    # 🔷 Footer (Static)
+    c.setFont("Helvetica", 9)
+    c.setFillColor(colors.black)
+    c.drawCentredString(width / 2, 35, "308, Third Floor, Fortune Business Center, 165 R.N.T. Marg, Indore 452001, M.P., India")
+    c.drawCentredString(width / 2, 22, "Tel: (+91) 731 2515151 • Fax: (+91) 731 4096348 • Email: shraddhaimpex@yahoo.com")
 
-    # ✅ Finalize
+    # ✅ Save
     c.save()
     buffer.seek(0)
     return Response(content=buffer.read(), media_type="application/pdf", headers={
