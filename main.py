@@ -17,7 +17,7 @@ class SalesContractData(BaseModel):
     contract_no: str
     date: str
     company_name: str
-    tagline: str  # Used as "Organization"
+    tagline: str  # Organization
     website: str
     email: str
     address: str
@@ -38,7 +38,7 @@ class SalesContractData(BaseModel):
     documents: str
     payment_terms: str
 
-# ✅ Counter Logic
+# ✅ Counter
 def get_next_counter():
     with lock:
         if not os.path.exists(COUNTER_FILE):
@@ -52,7 +52,7 @@ def get_next_counter():
             f.truncate()
             return count
 
-# ✅ PDF Generation
+# ✅ PDF Generator
 @app.post("/generate-pdf/")
 async def generate_pdf(data: SalesContractData):
     pdf_number = get_next_counter()
@@ -62,61 +62,51 @@ async def generate_pdf(data: SalesContractData):
     width, height = A4
 
     # Margins
-    left_margin = 50
-    right_margin = width - 50
-    top_margin = height - 40
-    bottom_margin = 50
+    left = 50
+    right = width - 50
+    top = height - 40
 
     # 🔷 Header
     c.setFont("Helvetica-Bold", 10)
     c.setFillColor(colors.grey)
-    c.drawString(left_margin, top_margin, f"Website: {data.website}")
+    c.drawString(left, top, f"Website: {data.website}")
+    c.drawRightString(right, top, f"Email: {data.email}")
+
     c.setFont("Helvetica-Bold", 16)
     c.setFillColor(colors.black)
-    c.drawCentredString(width / 2, top_margin, data.company_name.upper())
-    c.setFont("Helvetica-Bold", 10)
-    c.setFillColor(colors.grey)
-    c.drawRightString(right_margin, top_margin, f"Email: {data.email}")
-
-    c.setFont("Helvetica", 11)
-    c.setFillColor(colors.black)
-    c.drawCentredString(width / 2, top_margin - 20, data.tagline)
+    c.drawCentredString(width / 2, top, data.company_name.upper())
 
     c.setFont("Helvetica", 10)
-    c.drawString(left_margin, top_margin - 40, f"Address: {data.address}")
-    c.drawRightString(right_margin, top_margin - 40, f"GST: {data.gst_number}")
+    c.drawCentredString(width / 2, top - 20, data.tagline)
 
-    # 🔷 Title & Contract Info
-    start_y = top_margin - 80
+    c.setFont("Helvetica", 10)
+    c.drawString(left, top - 40, f"Address: {data.address}")
+    c.drawRightString(right, top - 40, f"GST: {data.gst_number}")
+
+    # 🔷 Title & Info
+    y = top - 80
     c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(width / 2, start_y, "SALES CONTRACT")
-    c.setFont("Helvetica", 11)
-    c.drawString(left_margin, start_y - 20, f"Contract No: {data.contract_no}")
-    c.drawRightString(right_margin, start_y - 20, f"Date: {data.date}")
-
-    # 🔷 Seller / Consignee / Notify Party Block
-    y = start_y - 60
-    x1, x2, x3 = 50, 230, 410
-
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(x1, y, "SELLER")
-    c.drawString(x2, y, "CONSIGNEE | NOTIFY PARTY 1")
-    c.drawString(x3, y, "NOTIFY PARTY 2")
-
+    c.drawCentredString(width / 2, y, "SALES CONTRACT")
     c.setFont("Helvetica", 10)
-    for i, line in enumerate(data.seller):
-        c.drawString(x1, y - ((i + 1) * 14), line)
-    for i, line in enumerate(data.consignee):
-        c.drawString(x2, y - ((i + 1) * 14), line)
+    c.drawString(left, y - 20, f"Contract No: {data.contract_no}")
+    c.drawRightString(right, y - 20, f"Date: {data.date}")
+    y -= 60
 
-    notify_lines = data.notify_party if data.notify_party else ["TO ORDER"]
-    for i, line in enumerate(notify_lines):
-        c.drawString(x3, y - ((i + 1) * 14), line)
+    # 🔷 Seller / Consignee / Notify as paragraphs
+    def draw_paragraph(label, lines, y_pos):
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(left, y_pos, label)
+        c.setFont("Helvetica", 10)
+        for i, line in enumerate(lines):
+            c.drawString(left + 20, y_pos - ((i + 1) * 14), line)
+        return y_pos - ((len(lines) + 2) * 14)
 
-    max_lines = max(len(data.seller), len(data.consignee), len(notify_lines))
-    y = y - ((max_lines + 2) * 14)
+    y = draw_paragraph("SELLER", data.seller, y)
+    y = draw_paragraph("CONSIGNEE | NOTIFY PARTY 1", data.consignee, y)
+    notify = data.notify_party if data.notify_party else ["TO ORDER"]
+    y = draw_paragraph("NOTIFY PARTY 2", notify, y)
 
-    # 🔷 Product Table
+    # 🔷 Product Table (shifted upward)
     table_data = [
         ["Product", "Quantity", "Price (CIF), Colombo", "Amount(CIF)"],
         [data.product_name, data.quantity, data.price, data.amount]
@@ -132,11 +122,11 @@ async def generate_pdf(data: SalesContractData):
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
     ]))
     table.wrapOn(c, width, height)
-    table.drawOn(c, left_margin, y - 100)
+    table.drawOn(c, left, y - 100)
     y -= 130
 
     # 🔷 Dynamic Fields
-    dynamic_details = [
+    fields = [
         ("Packing", data.packing),
         ("Loading Port", data.loading_port),
         ("Destination Port", data.destination_port),
@@ -146,17 +136,17 @@ async def generate_pdf(data: SalesContractData):
         ("Documents", data.documents),
         ("Payment Terms", data.payment_terms)
     ]
-    for label, value in dynamic_details:
+    for label, val in fields:
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(left_margin, y, f"{label}:")
+        c.drawString(left, y, f"{label}:")
         c.setFont("Helvetica", 10)
-        for line in str(value).split("\n"):
-            c.drawString(left_margin + 100, y, line)
+        for line in str(val).split("\n"):
+            c.drawString(left + 100, y, line)
             y -= 14
-        y -= 4
+        y -= 6
 
     # 🔷 Static Details
-    static_details = [
+    static = [
         ("Arbitration", [
             "In the event of any dispute between the parties arising out of this contract,",
             "all disputes shall be settled by the way of arbitration through a sole arbitration",
@@ -170,16 +160,16 @@ async def generate_pdf(data: SalesContractData):
             "and to be acceptable by both the parties and the seller will not be liable for any claim at destination port."
         ])
     ]
-    for label, lines in static_details:
+    for label, lines in static:
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(left_margin, y, f"{label}:")
+        c.drawString(left, y, f"{label}:")
         c.setFont("Helvetica", 10)
         for line in lines:
-            c.drawString(left_margin + 100, y, line)
+            c.drawString(left + 100, y, line)
             y -= 14
-        y -= 6
+        y -= 8
 
-    # 🔷 Acceptance Block
+    # 🔷 Acceptance
     c.setFont("Helvetica-Bold", 11)
     c.drawCentredString(width / 2, y, "Accepted")
     y -= 20
@@ -190,15 +180,8 @@ async def generate_pdf(data: SalesContractData):
     y -= 50
     c.drawString(50, y, data.seller[0] if data.seller else "")
     c.drawString(230, y, data.consignee[0] if data.consignee else "")
-    c.drawString(400, y, notify_lines[0])
+    c.drawString(400, y, notify[0])
 
-    # 🔷 Footer (Static)
-    c.setFont("Helvetica", 9)
-    c.setFillColor(colors.black)
-    c.drawCentredString(width / 2, 35, "308, Third Floor, Fortune Business Center, 165 R.N.T. Marg, Indore 452001, M.P., India")
-    c.drawCentredString(width / 2, 22, "Tel: (+91) 731 2515151 • Fax: (+91) 731 4096348 • Email: shraddhaimpex@yahoo.com")
-
-    # ✅ Save
     c.save()
     buffer.seek(0)
     return Response(content=buffer.read(), media_type="application/pdf", headers={
@@ -207,4 +190,4 @@ async def generate_pdf(data: SalesContractData):
 
 @app.get("/")
 def home():
-    return {"message": "Your Render App is Working!"}
+    return {"message": "Sales Contract API is working!"}
