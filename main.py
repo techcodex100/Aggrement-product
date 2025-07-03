@@ -53,20 +53,14 @@ async def generate_pdf(data: SalesContractData):
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    # 🔷 Header Section (Website Left, Logo Center, Company Name Right)
+    # 🔷 Header
     try:
         img_path = os.path.join(os.path.dirname(__file__), "saleslogo.jpg")
         header_img = ImageReader(img_path)
-        img_width, img_height = 70, 60
-        x_center = (width - img_width) / 2
-        y_top = height - 65
-
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(colors.grey)
         c.drawString(40, height - 30, "Website: www.shraddhaimpex.in")
-
-        c.drawImage(header_img, x_center, y_top, width=img_width, height=img_height, mask='auto')
-
+        c.drawImage(header_img, (width - 70) / 2, height - 65, width=70, height=60, mask='auto')
         c.setFont("Helvetica-Bold", 12)
         c.setFillColor(colors.black)
         c.drawRightString(width - 40, height - 25, "SHRADDHA IMPEX")
@@ -84,14 +78,14 @@ async def generate_pdf(data: SalesContractData):
     c.drawString(50, start_y - 20, f"Contract No: {data.contract_no}")
     c.drawRightString(width - 50, start_y - 20, f"Date: {data.date}")
 
-    # 🔷 Seller Block (shifted left)
-    y = start_y - 80
+    # 🔷 Seller Block
+    y = start_y - 60
     c.setFont("Helvetica-Bold", 9)
     c.drawString(35, y, "SELLER")
     seller = [
         "SHRADDHA IMPEX",
-        "308, THIRD FLOOR, FORTUNE ",
-        " BUSINESS CENTER",
+        "308, THIRD FLOOR, FORTUNE",
+        "BUSINESS CENTER",
         "165 R.N.T. MARG, INDORE-452001",
         "M.P., INDIA"
     ]
@@ -99,18 +93,21 @@ async def generate_pdf(data: SalesContractData):
     for i, line in enumerate(seller):
         c.drawString(35, y - ((i + 1) * 12), line)
 
-    # 🔷 Consignee and Notify Parties (same horizontal line)
+    # 🔷 Shift y below seller block
+    y = y - ((len(seller) + 2) * 12)
+
+    # 🔷 Consignee and Notify Parties
     c.setFont("Helvetica-Bold", 9)
-    c.drawString(230, y, "CONSIGNEE | NOTIFY PARTY 1")
+    c.drawString(230, y + 60, "CONSIGNEE | NOTIFY PARTY 1")
     c.setFont("Helvetica", 9)
     for i, line in enumerate(data.consignee):
-        c.drawString(230, y - ((i + 1) * 12), line)
+        c.drawString(230, y + 45 - (i * 12), line)
 
     c.setFont("Helvetica-Bold", 9)
-    c.drawString(410, y, "NOTIFY PARTY 2")
+    c.drawString(410, y + 60, "NOTIFY PARTY 2")
     c.setFont("Helvetica", 9)
     for i, line in enumerate(data.notify_party):
-        c.drawString(410, y - ((i + 1) * 12), line)
+        c.drawString(410, y + 45 - (i * 12), line)
 
     # 🔷 Product Table
     table_data = [
@@ -128,10 +125,10 @@ async def generate_pdf(data: SalesContractData):
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
     ]))
     table.wrapOn(c, width, height)
-    table.drawOn(c, 40, y - 150)
+    table.drawOn(c, 40, y - 100)
 
     # 🔷 Dynamic Details
-    y -= 160
+    y = y - 120
     dynamic_details = [
         ("Packing", data.packing),
         ("Loading Port", data.loading_port),
@@ -163,7 +160,7 @@ async def generate_pdf(data: SalesContractData):
             y -= 12
         y -= 6
 
-    # 🔷 Acceptance and Signature
+    # 🔷 Acceptance
     c.setFont("Helvetica-Bold", 10)
     c.drawCentredString(width / 2, y, "Accepted")
     y -= 20
@@ -176,7 +173,7 @@ async def generate_pdf(data: SalesContractData):
     c.drawString(230, y, "SMART DRAGON LANKA PVT LTD")
     c.drawString(400, y, "DEVI GLOBAL HK LTD")
 
-    # 🔷 Footer Address
+    # 🔷 Footer
     c.setFont("Helvetica", 7)
     c.drawCentredString(width / 2, 30, "308, Third Floor, Fortune Business Center, 165 R.N.T. Marg, Indore 452001, M.P., India")
     c.drawCentredString(width / 2, 18, "Tel. : (+91) 731 2515151 • Fax : (+91) 731 4096348 • E-Mail : shraddhaimpex@yahoo.com")
